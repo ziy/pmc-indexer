@@ -5,7 +5,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -33,6 +32,8 @@ public class PmcArticleIndexer {
 
   public static String TEXT_FIELD = "text";
 
+  private static Stopwatch stopwatch = Stopwatch.createStarted();
+
   public PmcArticleIndexer(String indexPath) throws IOException {
     File indexDir = new File(indexPath);
     if (indexDir.exists() && indexDir.listFiles().length > 0) {
@@ -56,13 +57,18 @@ public class PmcArticleIndexer {
       for (int i = 0; i < article.getSections().size(); i++) {
         Document doc = new Document();
         doc.add(new IntField(PMID_FIELD, article.getPmid(), Field.Store.YES));
-        doc.add(new TextField(TITLE_FIELD, article.getTitle(), Field.Store.YES));
+        String title = article.getTitle();
+        if (title != null) {
+          doc.add(new TextField(TITLE_FIELD, title, Field.Store.YES));
+        }
         doc.add(new IntField(SECTION_FIELD, i, Field.Store.YES));
         doc.add(new TextField(TEXT_FIELD, article.getSections().get(i), Field.Store.YES));
         writer.addDocument(doc);
       }
-      if (count % 1000 == 1) {
+      if (count % 10000 == 0) {
         writer.commit();
+        System.out.println(stopwatch);
+        System.out.print("Indexing " + count + "... ");
       }
     }
     writer.commit();
@@ -74,16 +80,14 @@ public class PmcArticleIndexer {
   }
 
   public static void main(String[] args) throws IOException {
-    PmcArticleIndexer mci = new PmcArticleIndexer(args[0]);
+    PmcArticleIndexer pai = new PmcArticleIndexer(args[0]);
     File file = new File(args[1]);
-    Stopwatch stopwatch = Stopwatch.createStarted();
     System.out.print("Indexing " + file.getName() + "... ");
-    stopwatch.reset();
-    mci.indexDocs(new FileInputStream(file));
-    System.out.println(stopwatch.elapsed(TimeUnit.SECONDS) + " secs");
+    pai.indexDocs(new FileInputStream(file));
+    System.out.println(stopwatch);
     System.out.print("Optimizing... ");
     stopwatch.reset();
-    mci.optimize();
-    System.out.println(stopwatch.elapsed(TimeUnit.SECONDS) + " secs");
+    pai.optimize();
+    System.out.println(stopwatch);
   }
 }
